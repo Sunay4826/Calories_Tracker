@@ -1,0 +1,9 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+local_store/
+data/raw/
+training_data.jsonl
+.DS_Store
+*.pyc

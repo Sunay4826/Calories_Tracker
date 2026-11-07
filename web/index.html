@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calories Tracker – Food Log Tester</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#16191d; --muted:#67707a; --line:#e2e5e9; --accent:#0f6fd8; --ok:#15803d; --warn:#b45309; --err:#b42318; --chip:#eef1f5; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1215; --card:#191d22; --text:#e8ebee; --muted:#9aa4ae; --line:#2b323a; --accent:#5aa2ff; --ok:#4ade80; --warn:#fbbf24; --err:#f97066; --chip:#232930; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:760px; margin:0 auto; padding:16px 16px 60px; }
+  h1 { font-size:21px; margin:4px 0 2px; } .sub { color:var(--muted); margin:0 0 12px; font-size:13px; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; } .tabs button { flex:1; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; }
+  label { font-weight:600; display:block; margin-bottom:6px; }
+  textarea, input, select { font:inherit; color:inherit; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 10px; width:100%; }
+  textarea { min-height:64px; resize:vertical; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  .row > * { flex:1; min-width:110px; }
+  button { font:inherit; font-weight:600; border:1px solid var(--line); background:var(--chip); color:var(--text); border-radius:10px; padding:9px 12px; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.small { padding:5px 9px; font-size:13px; flex:0 0 auto; min-width:0; }
+  button.on { outline:2px solid var(--accent); }
+  button:disabled { opacity:.55; cursor:wait; }
+  #preview { display:none; margin-top:10px; max-width:100%; max-height:220px; border-radius:10px; }
+  .hint { color:var(--muted); font-size:12.5px; margin-top:6px; }
+  .err { color:var(--err); font-weight:600; white-space:pre-wrap; }
+  .item { border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:10px; }
+  .item.review { border-color:var(--warn); }
+  .item h3 { margin:0; font-size:16px; } .item .ai { color:var(--muted); font-size:12.5px; }
+  .badge { display:inline-block; font-size:11.5px; font-weight:700; border-radius:20px; padding:2px 8px; margin:6px 6px 0 0; background:var(--chip); }
+  .badge.db { color:var(--ok); } .badge.est { color:var(--warn); }
+  .msg { color:var(--warn); font-size:13px; margin-top:6px; }
+  .macros { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:8px; }
+  .m { background:var(--bg); border-radius:9px; padding:6px; text-align:center; } .m b { display:block; font-size:16px; } .m span { font-size:11.5px; color:var(--muted); }
+  .compare { font-size:12.5px; color:var(--muted); margin-top:6px; }
+  .panel { margin-top:10px; padding:10px; border-radius:10px; background:var(--bg); }
+  .alts button { margin:4px 6px 0 0; }
+  .totals { font-weight:700; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; margin-top:6px; }
+  td, th { text-align:left; padding:5px 4px; border-bottom:1px solid var(--line); } td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  details summary { cursor:pointer; color:var(--muted); font-size:13px; margin-top:8px; }
+  pre { white-space:pre-wrap; word-break:break-word; font-size:11.5px; }
+  @media (max-width:420px) { .macros { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Calories Tracker – Food Log Tester</h1>
+  <p class="sub">Local test of the food engine: AI recognises the meal → INDB database → nutrients → you confirm or fix.</p>
+
+  <div class="tabs">
+    <button id="tab-log" class="on" type="button">Log meal</button>
+    <button id="tab-diary" type="button">My diary</button>
+    <button id="tab-review" type="button">Nutritionist queue</button>
+  </div>
+
+  <section id="view-log">
+    <div class="card">
+      <label for="phone">Test user phone</label>
+      <input id="phone" value="9876543210" inputmode="numeric">
+      <p class="hint">Each phone number is a separate test user with its own diary and personal corrections.</p>
+    </div>
+    <div class="card">
+      <label for="text">Describe the meal (or add a photo, or speak)</label>
+      <textarea id="text" placeholder="e.g. 2 phulka, 1 katori dal tadka and aloo gobi"></textarea>
+      <div class="row">
+        <input id="file" type="file" accept="image/*" hidden>
+        <button id="pick" type="button">📷 Photo</button>
+        <button id="mic" type="button">🎤 Speak</button>
+        <select id="mealType"><option value="">Meal: auto</option><option>breakfast</option><option>lunch</option><option>snack</option><option>dinner</option></select>
+      </div>
+      <img id="preview" alt="Selected meal photo">
+      <p class="hint" id="micHint">🎤 uses your browser's speech-to-text (on-device, free). On iPhone over Wi-Fi, use the keyboard's own mic key instead.</p>
+      <div class="row"><button class="primary" id="go" type="button">Analyze</button></div>
+    </div>
+    <div id="out"></div>
+  </section>
+
+  <section id="view-diary" hidden>
+    <div class="card">
+      <div class="row"><input id="diaryDate" type="date"><select id="diaryDays"><option value="1">1 day</option><option value="7">7 days</option><option value="30">30 days</option></select><button id="loadDiary" type="button">Load</button></div>
+      <div id="diary"></div>
+    </div>
+  </section>
+
+  <section id="view-review" hidden>
+    <div class="card">
+      <p class="hint">What nutritionists see. Corrections become global only after approval here. (Test admin token: dev-admin)</p>
+      <div class="row"><select id="reviewStatus"><option>pending</option><option>approved</option><option>rejected</option></select><button id="loadReview" type="button">Load</button></div>
+      <div id="review"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = (v, d = 0) => v == null ? '—' : (+v).toFixed(d).replace(/\.0+$/, '');
+let image = null, analysis = null, open = {};
+
+const phone = () => $('phone').value.trim();
+async function api(path, body, method = 'POST', token) {
+  const r = await fetch(path, {
+    method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token || 'dev-' + phone()) },
+    body: method === 'GET' ? undefined : JSON.stringify({ phoneNumber: phone(), ...body }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail || d));
+  return d;
+}
+
+// ---------- tabs ----------
+for (const name of ['log', 'diary', 'review']) {
+  $('tab-' + name).onclick = () => {
+    for (const n of ['log', 'diary', 'review']) { $('view-' + n).hidden = n !== name; $('tab-' + n).classList.toggle('on', n === name); }
+    if (name === 'diary') loadDiary();
+    if (name === 'review') loadReview();
+  };
+}
+
+// ---------- inputs ----------
+$('pick').onclick = () => image ? (image = null, $('preview').style.display = 'none', $('pick').textContent = '📷 Photo') : $('file').click();
+$('file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  image = await shrink(f);
+  $('preview').src = 'data:image/jpeg;base64,' + image; $('preview').style.display = 'block';
+  $('pick').textContent = '✕ Remove photo'; $('file').value = '';
+};
+function shrink(file) { // max 1280 px JPEG, like the Flutter client
+  return new Promise((ok, bad) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      ok(c.toDataURL('image/jpeg', 0.85).split(',')[1]); URL.revokeObjectURL(img.src);
+    };
+    img.onerror = bad; img.src = URL.createObjectURL(file);
+  });
+}
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!Speech) { $('mic').disabled = true; $('micHint').textContent = 'This browser has no speech-to-text. Use the keyboard mic key, or open the page in Chrome/Safari on localhost.'; }
+$('mic').onclick = () => {
+  const rec = new Speech(); rec.lang = 'en-IN'; rec.interimResults = false;
+  $('mic').textContent = '🎙️ Listening…';
+  rec.onresult = e => { $('text').value = ($('text').value + ' ' + e.results[0][0].transcript).trim(); };
+  rec.onerror = e => showError('Speech error: ' + e.error + ' (on iPhone over Wi-Fi use the keyboard mic key)');
+  rec.onend = () => { $('mic').textContent = '🎤 Speak'; };
+  rec.start();
+};
+
+$('go').onclick = async () => {
+  const text = $('text').value.trim();
+  if (!text && !image) return showError('Type a meal, add a photo, or speak.');
+  busy($('go'), true, 'Analyzing…'); $('out').innerHTML = ''; open = {};
+  try {
+    analysis = await api('/api/auth/food/analyze', { text: text || null, imageBase64: image, imageMimeType: image ? 'image/jpeg' : null, mealType: $('mealType').value || null });
+    render();
+  } catch (e) { showError(e.message); }
+  busy($('go'), false, 'Analyze');
+};
+function busy(btn, on, label) { btn.disabled = on; btn.textContent = label; }
+function showError(msg) { $('out').innerHTML = `<div class="card err">${esc(msg)}</div>`; }
+
+// ---------- result + fix flow ----------
+function macroTiles(n) {
+  return `<div class="macros">
+    <div class="m"><b>${num(n.energy_kcal)}</b><span>kcal</span></div><div class="m"><b>${num(n.protein_g, 1)}</b><span>protein g</span></div>
+    <div class="m"><b>${num(n.carb_g, 1)}</b><span>carbs g</span></div><div class="m"><b>${num(n.fat_g, 1)}</b><span>fat g</span></div></div>`;
+}
+
+function render() {
+  const a = analysis;
+  if (a.notFood) return showError(a.message);
+  const items = a.items.map(itemCard).join('');
+  $('out').innerHTML = `<div class="card">
+      ${a.transcript ? `<p class="hint">Heard: “${esc(a.transcript)}”</p>` : ''}
+      <h2 style="margin:0;font-size:18px">Is this correct?</h2>
+      ${a.needsReview ? '<p class="msg">Some items need a quick check (orange).</p>' : ''}
+      ${items}
+      <div class="row"><button type="button" onclick="toggle('add')">＋ Add a missed item</button></div>
+      ${open.add ? addPanel() : ''}
+      <div class="item"><div class="totals">Meal total</div>${macroTiles(a.totals)}${nutrientTable(a.totals)}</div>
+      ${a.warnings.length ? `<p class="hint">${a.warnings.map(esc).join('<br>')}</p>` : ''}
+      ${a.databaseEnabled === false ? '<p class="hint">Food database is off (FOOD_USE_DATABASE=false): all nutrients are AI estimates.</p>' : ''}
+      <div class="row"><button class="primary" id="confirm" type="button">✓ Looks right, save meal</button></div>
+      <details><summary>Raw response</summary><pre>${esc(JSON.stringify(a, null, 2))}</pre></details>
+    </div>`;
+  $('confirm').onclick = confirmMeal;
+}
+
+function itemCard(i) {
+  const id = i.itemId, badge = i.source === 'database'
+    ? `<span class="badge db">✓ Verified · ${esc(i.match.dataSource)}</span>`
+    : `<span class="badge est">≈ AI estimate</span>`;
+  const how = i.match ? `<span class="badge">match: ${esc(i.match.method)} ${num(i.match.score * 100)}%</span>` : '';
+  const amount = `${num(i.quantity, 1)} ${esc(i.unit)} · ${num(i.grams)} g${i.gramsSource === 'your_usual' ? ' (your usual)' : ''}`;
+  const compare = i.aiEstimate ? `<div class="compare">AI thinks: ${num(i.aiEstimate.energy_kcal)} kcal · database: ${num(i.nutrients.energy_kcal)} kcal</div>` : '';
+  return `<div class="item ${i.needsReview ? 'review' : ''}">
+    <h3>${esc(i.name)}</h3>
+    <div class="ai">${i.name !== i.aiName ? 'AI saw: ' + esc(i.aiName) + ' · ' : ''}${amount}</div>
+    ${badge}${how}${i.edited ? '<span class="badge">edited</span>' : ''}
+    ${i.reviewMessages.map(m => `<div class="msg">⚠ ${esc(m)}</div>`).join('')}
+    ${i.note ? `<div class="hint">ℹ ${esc(i.note)}</div>` : ''}
+    ${macroTiles(i.nutrients)}${compare}
+    <div class="row">
+      <button class="small" type="button" onclick="toggle('amt-${id}')">Change amount</button>
+      <button class="small" type="button" onclick="toggle('alt-${id}')">Not this?</button>
+      ${i.aiEstimate ? `<button class="small" type="button" onclick="fix('use_estimate','${id}')">Use AI estimate</button>` : ''}
+      <button class="small" type="button" onclick="fix('remove','${id}')">Remove</button>
+    </div>
+    ${open['amt-' + id] ? amountPanel(i) : ''}${open['alt-' + id] ? altPanel(i) : ''}
+  </div>`;
+}
+
+function amountPanel(i) {
+  const opts = i.unitOptions.map(o => `<option value="${esc(o.unit)}" ${o.unit === i.unit ? 'selected' : ''}>${esc(o.unit)} (${num(o.gramsPerUnit)} g${o.yours ? ', yours' : ''})</option>`).join('');
+  return `<div class="panel"><div class="row">
+      <input id="q-${i.itemId}" type="number" step="0.5" min="0.5" value="${i.quantity}">
+      <select id="u-${i.itemId}">${opts}</select>
+      <button class="small primary" type="button" onclick="setAmount('${i.itemId}')">Save</button></div>
+    <p class="hint">Your size is remembered for next time (only for you).</p></div>`;
+}
+
+function altPanel(i) {
+  const alts = i.alternatives.map(a => `<button class="small" type="button" onclick="fix('replace','${i.itemId}',{foodCode:'${a.foodCode}'})">${esc(a.foodName)}</button>`).join('');
+  return `<div class="panel">
+    ${alts ? `<div class="alts"><b>Maybe:</b><br>${alts}</div>` : ''}
+    <div class="row"><input id="n-${i.itemId}" placeholder="Type the right dish, e.g. methi thepla" oninput="searchDb(this.value,'${i.itemId}')">
+      <button class="small primary" type="button" onclick="fix('replace','${i.itemId}',{correctedName:$('n-${i.itemId}').value})">Fix</button></div>
+    <div class="alts" id="s-${i.itemId}"></div></div>`;
+}
+
+function addPanel() {
+  return `<div class="panel"><div class="row">
+    <input id="addName" placeholder="Dish name, e.g. 1 glass chaas"><input id="addGrams" type="number" placeholder="grams (optional)">
+    <button class="small primary" type="button" onclick="fix('add',null,{correctedName:$('addName').value, grams: +$('addGrams').value || null})">Add</button></div></div>`;
+}
+
+let searchTimer;
+function searchDb(q, itemId) {
+  clearTimeout(searchTimer);
+  if (q.trim().length < 2 || analysis?.databaseEnabled === false) return;
+  searchTimer = setTimeout(async () => {
+    const d = await api('/api/auth/food/search', { query: q, limit: 6 });
+    $('s-' + itemId).innerHTML = d.results.map(r =>
+      `<button class="small" type="button" onclick="fix('replace','${itemId}',{foodCode:'${r.foodCode}'})">${esc(r.foodName)} · ${num(r.kcalPer100g)} kcal/100g${r.quality === 'suspect' ? ' ⚠' : ''}</button>`).join('');
+  }, 250);
+}
+
+function toggle(key) { open[key] = !open[key]; render(); }
+
+async function fix(action, itemId, extra = {}) {
+  if ((action === 'replace' || action === 'add') && !extra.foodCode && !(extra.correctedName || '').trim()) return;
+  try {
+    analysis = await api('/api/auth/food/fix', { analysisId: analysis.analysisId, action, itemId, ...extra });
+    open = {}; render();
+  } catch (e) { alert(e.message); }
+}
+function setAmount(id) { fix('set_amount', id, { quantity: +$('q-' + id).value, unit: $('u-' + id).value }); }
+
+async function confirmMeal() {
+  try {
+    const { meal } = await api('/api/auth/food/confirm', { analysisId: analysis.analysisId, mealType: $('mealType').value || null });
+    $('out').innerHTML = `<div class="card"><b>Saved as ${esc(meal.mealType)}</b> · ${num(meal.totals.energy_kcal)} kcal. See “My diary”.</div>`;
+    $('text').value = ''; image = null; $('preview').style.display = 'none'; $('pick').textContent = '📷 Photo';
+  } catch (e) { alert(e.message); }
+}
+
+const SHOW = [['energy_kcal','Energy','kcal'],['protein_g','Protein','g'],['carb_g','Carbs','g'],['fat_g','Fat','g'],['fibre_g','Fibre','g'],['freesugar_g','Free sugar','g'],['sodium_mg','Sodium','mg'],['potassium_mg','Potassium','mg'],['calcium_mg','Calcium','mg'],['iron_mg','Iron','mg'],['vita_ug','Vitamin A','µg'],['vitc_mg','Vitamin C','mg'],['folate_ug','Folate','µg'],['vitb12_ug','B12','µg']];
+function nutrientTable(n) {
+  const rows = SHOW.filter(([k]) => n[k] != null).map(([k, l, u]) => `<tr><td>${l}</td><td class="n">${num(n[k], 1)} ${u}</td></tr>`).join('');
+  return `<details><summary>All nutrients</summary><table>${rows}${Object.keys(n).filter(k => !SHOW.some(s => s[0] === k)).map(k => `<tr><td>${esc(k)}</td><td class="n">${num(n[k], 2)}</td></tr>`).join('')}</table></details>`;
+}
+
+// ---------- diary ----------
+$('diaryDate').value = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+$('loadDiary').onclick = loadDiary;
+// The six numbers a saved meal keeps (DIARY_NUTRIENTS in food/nutrients.py).
+const diaryLine = t => `${num(t.energy_kcal)} kcal · protein ${num(t.protein_g)} g · fat ${num(t.fat_g)} g · fibre ${num(t.fibre_g)} g · sugar ${num(t.freesugar_g)} g · sodium ${num(t.sodium_mg)} mg`;
+async function loadDiary() {
+  try {
+    const d = await api('/api/auth/food/history', { date: $('diaryDate').value, days: +$('diaryDays').value });
+    $('diary').innerHTML = d.days.length ? d.days.map(day => `<div class="item"><b>${day.date}</b> · ${diaryLine(day.totals)}
+      ${day.meals.map(m => `<div class="hint">${esc(m.mealType)} · ${num(m.totals.energy_kcal)} kcal · ${m.items.map(i => esc(i.name)).join(', ')}
+        <button class="small" type="button" onclick="deleteMeal('${m.id}')">Delete</button></div>`).join('')}</div>`).join('')
+      : '<p class="hint">No meals saved in this range.</p>';
+  } catch (e) { $('diary').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+async function deleteMeal(id) { await api('/api/auth/food/meals/delete', { mealId: id }); loadDiary(); }
+
+// ---------- nutritionist queue ----------
+$('loadReview').onclick = loadReview;
+async function loadReview() {
+  try {
+    const d = await api('/api/admin/food/review-queue?status=' + $('reviewStatus').value, null, 'GET', 'dev-admin');
+    $('review').innerHTML = d.items.length ? d.items.map(r => `<div class="item">
+      ${r.type === 'alias'
+        ? `<b>Name fix:</b> “${esc(r.aiName)}” → <b>${esc(r.foodName)}</b><div class="hint">${r.supporters.length} of ${r.usersWhoCorrected} users agree (${num(r.agreement * 100)}%)</div>`
+        : `<b>Data check:</b> ${esc(r.foodName)}<div class="hint">Database ${num(r.dbKcalPer100g)} kcal/100g vs AI ${r.aiKcalSamples.map(v => num(v)).join(', ')} · seen ${r.count}×</div>`}
+      ${r.status === 'pending' ? `<div class="row"><button class="small primary" type="button" onclick="decide('${esc(r.id)}','approve')">${r.type === 'alias' ? 'Approve' : 'Mark DB value wrong'}</button>
+        <button class="small" type="button" onclick="decide('${esc(r.id)}','reject')">${r.type === 'alias' ? 'Reject' : 'DB is fine'}</button></div>` : `<div class="hint">${esc(r.status)} by ${esc(r.decidedBy)}</div>`}
+    </div>`).join('') : '<p class="hint">Nothing here.</p>';
+  } catch (e) { $('review').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+async function decide(id, decision) {
+  await fetch('/api/admin/food/review/' + encodeURIComponent(id), { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer dev-admin' }, body: JSON.stringify({ decision }) });
+  loadReview();
+}
+</script>
+</body>
+</html>
