@@ -495,7 +495,7 @@ class FoodEngine:
         await self.store.delete(MEALS, meal_id)
 
     async def delete_user_data(self, user_id: str) -> int:
-        """Remove everything stored for this user (call from the host app's account deletion)."""
+        """Remove everything stored for this user (call when a user deletes their account)."""
         removed = 0
         for collection in ALL_COLLECTIONS:
             docs = await self.store.find(collection, {"userId": user_id}, limit=100_000)

@@ -32,8 +32,8 @@ So each does what it's good at: **the AI recognises, the database measures.** If
 
 | Decision | Why |
 |---|---|
-| **Gemini key stays on the server** | Anything inside the app can be extracted (a mobile app can ship its own `.env` as an asset). The app only calls host-backend with the normal login token. |
-| **Lives inside host-backend** (not a new server) | Login, MongoDB, rate limits and AWS deployment already exist there. The face-scan feature already follows the same "photo → model → save" pattern. |
+| **Gemini key stays on the server** | Anything inside the app can be extracted (a mobile app can ship its own `.env` as an asset). The app only calls this API with a signed login token. |
+| **One small FastAPI service** | A single process with signed-token auth, MongoDB and rate limits; runs locally with JSON files and deploys as one Docker container. |
 | **INDB as the database** | Largest free source of *cooked Indian recipes* (1,014), 38 nutrients, from Anuvaad (2024). IFCT has raw ingredients, not dishes. |
 | **AI grams first, database serving second** | INDB's household servings are often odd (a "small bowl" of khichdi = 574 g). The AI sees the actual plate. |
 | **Database rows can be "suspect"** | 118 INDB dishes (mostly deep-fried) count all of the frying oil, e.g. poori at 78 g fat per 100 g. Those use the AI estimate instead. |
@@ -59,11 +59,10 @@ So each does what it's good at: **the AI recognises, the database measures.** If
 
 | Path | What |
 |---|---|
-| `food/` | The engine. Copy to `host-backend/app/services/food/` |
-| `flutter/lib/features/food_log/` | App screens + API client. Copy to `app/lib/features/food_log/` |
-| `web/index.html` | Local test page (not for production) |
-| `main.py` | Local test server (not for production) |
+| `food/` | The engine (FastAPI routes + logic) |
+| `web/index.html` | Web client: log a meal, diary, nutritionist queue |
+| `main.py` | API server (local and Docker) |
 | `scripts/` | Build the food database; export training data |
-| `tests/` | 24 automated tests |
+| `tests/` | 42 automated tests |
 | `data/raw/` | The original INDB Excel file (not committed) |
 | `docs/` | This documentation |

@@ -139,7 +139,7 @@ class GeminiClient:
 
 
 class BedrockClaudeClient:
-    """Claude via AWS Bedrock. Uses the ECS task's IAM role, so no key is needed.
+    """Claude via AWS Bedrock. Uses the standard AWS credential chain (IAM role or env vars).
 
     NOTE: written for a typical Bedrock setup but not run
     locally (needs AWS credentials). Test it on the dev stack before enabling.
@@ -148,7 +148,7 @@ class BedrockClaudeClient:
     def __init__(self, model_id: str, region: str):
         if not model_id:
             raise AiError("FOOD_BEDROCK_MODEL_ID is not set.")
-        import boto3  # host-backend already depends on boto3.
+        import boto3  # optional dependency, only needed for FOOD_AI_PROVIDER=bedrock
 
         self.model_id = model_id
         self.client = boto3.client("bedrock-runtime", region_name=region)

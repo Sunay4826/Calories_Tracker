@@ -1,8 +1,8 @@
 """Per-user limits on AI calls, so one user (or a stolen token) can't run up the bill.
 
-In-memory, so each server process counts on its own: with N ECS tasks a user
+In-memory, so each server process counts on its own: with N server processes a user
 can make up to N x the limit. Good enough to stop abuse; for exact limits move
-the counters to Redis (host-backend already depends on redis).
+the counters to Redis.
 """
 import time
 from collections import deque

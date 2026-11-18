@@ -1,10 +1,6 @@
-"""HTTP routes. Inside host-backend, add to app/gateway.py:
+"""HTTP routes, mounted by main.py.
 
-    from app.services.food.api import router as food_router, admin_router as food_admin_router
-    app.include_router(food_router)
-    app.include_router(food_admin_router)
-
-App routes   (login token + phoneNumber, like other /api/auth/ routes):
+App routes   (Bearer token + phoneNumber in the body):
     POST /api/auth/food/analyze       photo / text / voice -> items + nutrients
     POST /api/auth/food/fix           change one item (replace / amount / remove / add / use_estimate)
     POST /api/auth/food/confirm       save the meal to the diary

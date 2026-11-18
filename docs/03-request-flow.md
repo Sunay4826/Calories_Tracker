@@ -19,7 +19,7 @@ Header: `Authorization: Bearer <login token>`.
 - **Voice:** the phone turns speech into text first, so it arrives as `text` (see [09](09-voice-and-text.md)).
 
 ### Step 1 · Who is it? (`api.py` → `auth.py`)
-- The token must belong to this phone (the host app's `require_app_user_phone_match`). Otherwise **401/403**.
+- The token must belong to this phone (the signed token's `sub` claim). Otherwise **401/403**.
 - Rate limit: at most 10 scans per minute and 150 per day for this user. Otherwise **429**.
 
 ### Step 2 · Check the input (`engine.analyze`)
@@ -201,7 +201,7 @@ See [05](05-learning-and-fake-data.md). In short:
 | 429 | Too many scans |
 | 502 | AI failed after retries |
 
-Errors use FastAPI's normal `{"detail": "..."}`, which the existing Flutter error handling already reads.
+Errors use FastAPI's normal `{"detail": "..."}`.
 
 ---
 
@@ -269,10 +269,10 @@ Carbs are not kept, because they weren't on the agreed list. To add a number, pu
 - Saving the same scan twice gives **404** (the scan was deleted on save), where it used to give 409.
 
 ### Account deletion
-Call `await engine.delete_user_data(phone)` from the host app's account-deletion flow. It immediately removes the user's documents from every `food_*` collection (in privacy mode that's only their meals and any open scan).
+Call `await engine.delete_user_data(phone)` from your account-deletion flow. It immediately removes the user's documents from every `food_*` collection (in privacy mode that's only their meals and any open scan).
 
 ### Not covered by "we store nothing"
 - **Google** may keep the photo for a limited time for abuse monitoring (paid tier). On the free tier it may be used to improve Google's products. Use a paid key and mention Gemini in the privacy policy.
-- **Server logs:** make sure the host doesn't log request bodies; they contain the photo and the meal text.
+- **Server logs:** make sure the server doesn't log request bodies; they contain the photo and the meal text.
 - **Database backups:** they keep deleted meals until the backups themselves expire.
 

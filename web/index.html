@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Calories Tracker – Food Log Tester</title>
+<title>Calories Tracker – AI meal logging for Indian food</title>
 <style>
   :root { --bg:#f5f6f8; --card:#fff; --text:#16191d; --muted:#67707a; --line:#e2e5e9; --accent:#0f6fd8; --ok:#15803d; --warn:#b45309; --err:#b42318; --chip:#eef1f5; }
   @media (prefers-color-scheme: dark) { :root { --bg:#0f1215; --card:#191d22; --text:#e8ebee; --muted:#9aa4ae; --line:#2b323a; --accent:#5aa2ff; --ok:#4ade80; --warn:#fbbf24; --err:#f97066; --chip:#232930; } }
@@ -87,7 +87,7 @@
 
   <section id="view-review" hidden>
     <div class="card">
-      <p class="hint">What nutritionists see. Corrections become global only after approval here. (Test admin token: dev-admin)</p>
+      <p class="hint">What nutritionists see. Corrections become global only after approval here. </p>
       <div class="row"><select id="reviewStatus"><option>pending</option><option>approved</option><option>rejected</option></select><button id="loadReview" type="button">Load</button></div>
       <div id="review"></div>
     </div>
@@ -101,9 +101,19 @@ const num = (v, d = 0) => v == null ? '—' : (+v).toFixed(d).replace(/\.0+$/, '
 let image = null, analysis = null, open = {};
 
 const phone = () => $('phone').value.trim();
+// Demo deployments (FOOD_DEMO_LOGIN=true) hand out signed tokens; locally the dev tokens work.
+const tokenCache = {};
+async function authToken(admin) {
+  const key = admin ? 'admin' : 'u' + phone();
+  if (!(key in tokenCache)) {
+    const r = await fetch('/api/demo/token?phone=' + encodeURIComponent(phone()) + (admin ? '&admin=true' : ''));
+    tokenCache[key] = r.ok ? (await r.json()).token : (admin ? 'dev-admin' : 'dev-' + phone());
+  }
+  return tokenCache[key];
+}
 async function api(path, body, method = 'POST', token) {
   const r = await fetch(path, {
-    method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token || 'dev-' + phone()) },
+    method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token || await authToken(false)) },
     body: method === 'GET' ? undefined : JSON.stringify({ phoneNumber: phone(), ...body }),
   });
   const d = await r.json().catch(() => ({}));
@@ -295,7 +305,7 @@ async function deleteMeal(id) { await api('/api/auth/food/meals/delete', { mealI
 $('loadReview').onclick = loadReview;
 async function loadReview() {
   try {
-    const d = await api('/api/admin/food/review-queue?status=' + $('reviewStatus').value, null, 'GET', 'dev-admin');
+    const d = await api('/api/admin/food/review-queue?status=' + $('reviewStatus').value, null, 'GET', await authToken(true));
     $('review').innerHTML = d.items.length ? d.items.map(r => `<div class="item">
       ${r.type === 'alias'
         ? `<b>Name fix:</b> “${esc(r.aiName)}” → <b>${esc(r.foodName)}</b><div class="hint">${r.supporters.length} of ${r.usersWhoCorrected} users agree (${num(r.agreement * 100)}%)</div>`
@@ -307,7 +317,7 @@ async function loadReview() {
 }
 async function decide(id, decision) {
   await fetch('/api/admin/food/review/' + encodeURIComponent(id), { method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer dev-admin' }, body: JSON.stringify({ decision }) });
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await authToken(true) }, body: JSON.stringify({ decision }) });
   loadReview();
 }
 </script>

@@ -1,8 +1,7 @@
 """All tunable settings for the food engine, read from environment variables.
 
-Every value has a safe default, so the module runs with only GEMINI_API_KEY set.
-Inside host-backend these come from the same ECS task environment as the
-other settings (see docs/08-backend-integration.md).
+Every value has a safe default, so the service runs locally with only GEMINI_API_KEY set.
+For production settings see docs/08-deployment.md.
 """
 import os
 from dataclasses import dataclass
@@ -36,11 +35,16 @@ class FoodSettings:
     bedrock_region: str
     ai_timeout_seconds: float
 
-    # "dev" = fake tokens for local testing, "host" = real host-app login tokens.
+    # "dev" = fake tokens for local testing, "jwt" = signed HS256 tokens (production).
     auth_mode: str
+    auth_secret: str
+    # True = /api/demo/token hands out tokens for any phone (public live demos only).
+    demo_login: bool
     # "json" = files on disk (local testing), "mongo" = MongoDB.
     store: str
     json_store_dir: Path
+    mongodb_uri: str
+    mongodb_db: str
 
     # True  = look each dish up in the food database (INDB), AI estimate as fallback.
     # False = use only the AI's own nutrient estimate; the database is never touched.
@@ -82,9 +86,13 @@ def get_food_settings() -> FoodSettings:
         bedrock_model_id=_str("FOOD_BEDROCK_MODEL_ID", ""),
         bedrock_region=_str("FOOD_BEDROCK_REGION", "ap-south-1"),
         ai_timeout_seconds=_float("FOOD_AI_TIMEOUT_SECONDS", 60),
-        auth_mode=_str("FOOD_AUTH_MODE", "host").lower(),
+        auth_mode=_str("FOOD_AUTH_MODE", "jwt").lower(),
+        auth_secret=_str("FOOD_AUTH_SECRET", ""),
+        demo_login=_bool("FOOD_DEMO_LOGIN", False),
         store=_str("FOOD_STORE", "mongo").lower(),
         json_store_dir=Path(_str("FOOD_JSON_STORE_DIR", "local_store")),
+        mongodb_uri=_str("MONGODB_URI", "mongodb://localhost:27017"),
+        mongodb_db=_str("MONGODB_DB", "calories_tracker"),
         use_database=_bool("FOOD_USE_DATABASE", False),
         store_details=_bool("FOOD_STORE_DETAILS", False),
         history_days=_int("FOOD_HISTORY_DAYS", 30),

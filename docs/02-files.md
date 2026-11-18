@@ -3,11 +3,12 @@
 ```
 food-service/
 ├── README.md                    start here
-├── main.py                      local test server (NOT for production)
-├── requirements.txt             Python packages for local testing
+├── main.py                      API server (local + Docker)
+├── requirements.txt             Python packages
+├── Dockerfile                   production container
 ├── .env / .env.example          settings + Gemini key (.env is secret, never committed)
 ├── .gitignore
-├── food/                        ★ THE ENGINE → copy to host-backend/app/services/food/
+├── food/                        ★ THE ENGINE
 │   ├── __init__.py
 │   ├── api.py                   HTTP routes
 │   ├── engine.py                the whole flow: analyze → fix → confirm
@@ -19,24 +20,19 @@ food-service/
 │   ├── food_db.py               loads foods.json into memory
 │   ├── nutrients.py             nutrient list + "per 100 g × grams" maths
 │   ├── learning.py              corrections, trust scores, review queue
-│   ├── store.py                 saving data (JSON files locally, MongoDB in the host app)
-│   ├── auth.py                  who is calling (the host app token / dev token)
+│   ├── store.py                 saving data (JSON files locally, MongoDB in production)
+│   ├── auth.py                  who is calling (signed JWT / dev token)
 │   ├── ratelimit.py             max scans per user per minute/day
 │   ├── schemas.py               request body formats
 │   └── data/
 │       ├── foods.json           1,014 INDB dishes (built by scripts/build_food_db.py)
 │       └── aliases.json         51 common names → INDB codes ("phulka" → Chapati/Roti)
-├── flutter/lib/features/food_log/   ★ APP SCREENS → copy to app/lib/features/food_log/
-│   ├── data/food_log_api_client.dart
-│   └── presentation/
-│       ├── food_log_screen.dart     capture: camera / gallery / text / mic
-│       ├── food_review_screen.dart  "Is this correct?" + all fix actions
-│       └── food_diary_screen.dart   last 7 days + daily totals
-├── web/index.html               local test page (log / diary / nutritionist queue)
+├── web/index.html               web client (log / diary / nutritionist queue)
 ├── scripts/
 │   ├── build_food_db.py         INDB Excel → food/data/foods.json (+ quality flags)
-│   └── export_training_data.py  confirmed meals → training_data.jsonl
-├── tests/test_engine.py         24 automated tests (fake AI, no cost)
+│   ├── export_training_data.py  confirmed meals → training_data.jsonl
+│   └── make_token.py            create a signed login token
+├── tests/                       42 automated tests (fake AI, no cost)
 ├── data/raw/Anuvaad_INDB_2024.11.xlsx   original download (not committed)
 ├── local_store/                 local test data (not committed)
 └── docs/                        documentation
@@ -89,7 +85,9 @@ Every setting is an environment variable with a safe default. The full list is i
 | `GEMINI_API_KEY` | — | Required for Gemini |
 | `FOOD_AI_PROVIDER` | `gemini` | or `bedrock` |
 | `FOOD_GEMINI_MODEL` | `gemini-3.5-flash-lite` | fud-ai's default; cheapest/fastest |
-| `FOOD_AUTH_MODE` | `host` | `dev` only for local testing |
+| `FOOD_AUTH_MODE` | `jwt` | `dev` only for local testing |
+| `FOOD_AUTH_SECRET` | (empty) | required in `jwt` mode |
+| `MONGODB_URI` / `MONGODB_DB` | `mongodb://localhost:27017` / `calories_tracker` | used when `FOOD_STORE=mongo` |
 | `FOOD_STORE` | `mongo` | `json` only for local testing |
 | `FOOD_STORE_DETAILS` | `false` | `false` = privacy mode: no learning data; a meal keeps dish names + 6 nutrients and is auto-deleted. `true` = full learning system. See [03](03-request-flow.md#privacy-mode-food_store_detailsfalse) |
 | `FOOD_HISTORY_DAYS` | `30` | privacy mode: saved meals are deleted after this many days |
@@ -110,7 +108,7 @@ The ideas come from fud-ai's prompts (MIT License, © Apoorv Darshan), credited 
 
 ### `ai_client.py` — talking to the AI
 - **`GeminiClient`:** REST call to `generateContent` with `responseMimeType: application/json`, temperature 0 and a fixed seed (same photo → same answer), and the key in the `x-goog-api-key` header. Handles photos and audio.
-- **`BedrockClaudeClient`:** Claude via AWS Bedrock using the ECS task's IAM role (no key). Handles photos only, not audio. **Not yet run.**
+- **`BedrockClaudeClient`:** Claude via AWS Bedrock using the standard AWS credential chain. Handles photos only, not audio. **Not yet run.**
 - **Retries:** 429/500/503/529 errors are retried after 1 s, 2 s and 4 s, then the call fails with `AiError` → HTTP 502.
 - **`extract_json()`:** survives replies wrapped in ``` fences or extra words.
 
@@ -156,7 +154,7 @@ Details in [05](05-learning-and-fake-data.md).
 ### `store.py` — saving data
 - **Interface:** four methods, `get` / `put` / `find` / `delete`.
 - **`JsonFileStore`:** local testing.
-- **`MongoStore`:** the host app. It uses `app.core.database.get_allowed_collection`, so the 7 `food_*` collections must be allowlisted (see [08](08-backend-integration.md)).
+- **`MongoStore`:** production. Connects with `MONGODB_URI` / `MONGODB_DB` via motor and creates TTL indexes for auto-delete.
 
 | Collection | Holds |
 |---|---|
@@ -169,16 +167,16 @@ Details in [05](05-learning-and-fake-data.md).
 | `food_overrides` | database rows marked unreliable |
 
 ### `auth.py` — who is calling
-- **`host` mode:**
-  - `verify_app_user` calls the host app's own `require_app_user_phone_match` (the token must belong to the phone in the body).
-  - `require_food_admin` calls `require_admin_access`.
+- **`jwt` mode:**
+  - `verify_app_user` checks an HS256 token signed with `FOOD_AUTH_SECRET`; its `sub` must match the phone in the body.
+  - `require_food_admin` needs `"role": "admin"` in the token. Create tokens with `scripts/make_token.py`.
 - **`dev` mode:** fake tokens `dev-<phone>` and `dev-admin`. **Never deploy with dev mode.**
 
 ### `ratelimit.py`
 In-memory per-user limit (10/minute, 150/day by default). Each server process counts separately (see [10](10-testing-and-operations.md)).
 
 ### `schemas.py`
-Request bodies with validation (lengths, ranges, allowed values). Field names are camelCase like the rest of the host app.
+Request bodies with validation (lengths, ranges, allowed values). Field names are camelCase.
 
 ### `data/foods.json`
 Built by `scripts/build_food_db.py`. Each food has:
@@ -190,25 +188,13 @@ Built by `scripts/build_food_db.py`. Each food has:
 ### `data/aliases.json`
 51 hand-checked common names → codes, e.g. "phulka/roti/chapati" → `ASC096`, "steamed rice/chawal" → `ASC113`, "chole" → `BFP185`. Edit freely; keys starting with `_` are comments.
 
----
-
-## `flutter/lib/features/food_log/` — app screens
-
-| File | Does |
-|---|---|
-| `data/food_log_api_client.dart` | Same pattern as your existing API client: `AppSessionAutoRefreshClient`, `AppConfig.backendBaseUrl`, Bearer token, `AuthSessionGuard` on 401. Timeout is 60 s for AI calls and 20 s for others. Models: `FoodAnalysis`, `FoodItem`, `FoodUnitOption`, `FoodChoice`, `FoodMeal`, `FoodDiaryDay`. |
-| `presentation/food_log_screen.dart` | Camera/gallery via `image_picker`, resized to 1280 px at quality 85. Text box. 🎤 via `speech_to_text` (on-device, `en_IN`). Meal-type chips. "Analyze meal" opens the review screen. |
-| `presentation/food_review_screen.dart` | One card per dish with a ✓/≈ badge, warnings, macros and "AI thinks X kcal". Change amount (bottom sheet with units; switching units keeps the weight). Not this? (alternatives + live database search + typed name). Use AI estimate. Remove. Add missed item. Meal total. Save. |
-| `presentation/food_diary_screen.dart` | Last 7 days, daily totals, delete a meal, pull to refresh. |
-
-Written in the host app's style (`AppColors`, `AppSpacing`, `AuthSessionService`) but **not compiled here**. See [08](08-backend-integration.md) for the pubspec/permission changes.
 
 ## Other files
 
 | File | Does |
 |---|---|
-| `main.py` | Local server on port 8100. Loads `.env` and forces `dev` auth + `json` store. Serves `web/index.html` at `/` and API docs at `/docs`. `--lan` makes it reachable from the iPhone. |
+| `main.py` | API server on port 8100 (or `$PORT`). Loads `.env`; defaults to `dev` auth + `json` store for local use. Serves `web/index.html` at `/` and API docs at `/docs`. `--lan` makes it reachable from the iPhone. |
 | `web/index.html` | Three tabs: **Log meal** (photo/text/🎤 + the full fix flow), **My diary**, **Nutritionist queue** (approve/reject). |
 | `scripts/build_food_db.py` | Reads the INDB Excel and writes `foods.json`. Re-run it whenever INDB publishes a new version. |
 | `scripts/export_training_data.py` | Writes one JSON line per confirmed item: the AI's first guess, the final label, grams, edited or not, and "trusted". Input for your own model later. |
-| `tests/test_engine.py` | 37 tests: AI JSON repair, photo prompt rules, database build, AI-only mode, matching, parsing guards, every analyze path, every fix action, personal learning, consensus + nutritionist approval, fake-user protection, confirm/history, auth, rate limit. |
+| `tests/test_engine.py` + `tests/test_auth.py` | 42 tests: signed-token auth, AI JSON repair, photo prompt rules, database build, AI-only mode, matching, parsing guards, every analyze path, every fix action, personal learning, consensus + nutritionist approval, fake-user protection, confirm/history, auth, rate limit. |

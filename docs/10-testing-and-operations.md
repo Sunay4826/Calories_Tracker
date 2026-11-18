@@ -58,7 +58,7 @@ The database rows below need `FOOD_USE_DATABASE=true` in `.env`. With the defaul
   - rate limit (429 on the 11th call)
   - AI-only mode (`FOOD_USE_DATABASE=false`): no DB lookup, no choose call, food codes refused, search empty
 
-**Run them after every change.** Inside host-backend, copy `tests/test_engine.py` into its test folder and adjust the import path (`app.services.food…`).
+**Run them after every change.** CI runs them on every push (`.github/workflows/ci.yml`).
 
 ## Measured performance (29 Oct 2026, gemini-3.5-flash-lite, home Wi-Fi)
 | Input | Time |
@@ -93,15 +93,14 @@ Typically **1–2 calls per logged meal**. Check current prices at `ai.google.de
 
 ## Security checklist
 - [x] Gemini key only on the server (env / Secrets Manager), never in the app
-- [x] Every app route checks that the token matches the phone (the host app's own function)
+- [x] Every app route checks that the token matches the phone (signed HS256 token)
 - [x] Users can only read or change their own analyses and meals (404 otherwise)
 - [x] Admin routes need a admin role
 - [x] Rate limit on AI-calling routes
 - [x] Input size and type limits; base64 validated
 - [x] User text can't change the AI's instructions; AI output is validated
-- [x] MongoDB access only through the host app's collection allowlist
 - [ ] **Deploy check:** `FOOD_AUTH_MODE` is **not** `dev`
-- [ ] Rotate the Gemini key that was pasted in chat during development (it's in `food-service/.env` and `fudai-tester/.env`) and create a fresh paid-tier key for production
+- [ ] Use a long random `FOOD_AUTH_SECRET` and a fresh Gemini key for production
 
 ## Privacy (India's DPDP Act 2023)
 > **Current setting (30 Oct 2026): privacy mode** (`FOOD_STORE_DETAILS=false`). Only dish names and 6 nutrients per meal are kept, for 30 days; there is no learning data. Retention and account deletion are built in. Full details are in [03](03-request-flow.md#privacy-mode-food_store_detailsfalse). The notes below apply if learning is turned back on.
@@ -110,7 +109,7 @@ Typically **1–2 calls per logged meal**. Check current prices at `ai.google.de
 - **Stored:** meal text, AI results, corrections and the diary, all linked to the phone number. Food diaries are **health-related personal data**.
 - **Before launch:**
   1. Add food logging to the privacy policy and in-app consent (what's stored, why, for how long).
-  2. **Account deletion:** delete the user's documents from all `food_*` collections, *not built yet*. Add it to the host app's existing account-deletion flow (`userId` = normalised phone).
+  2. **Account deletion:** delete the user's documents from all `food_*` collections, *not built yet*. Call `engine.delete_user_data(userId)` from your account-deletion flow (`userId` = normalised phone).
   3. **Retention:** unconfirmed `food_analyses` aren't needed after a day. Add a nightly clean-up or a Mongo TTL index (this needs `createdAt` stored as a Date instead of text; small change in `engine.py`).
   4. Corrections used for shared learning are kept without photos. Exported training data should drop phone numbers (the export script already leaves them out).
 
@@ -122,11 +121,11 @@ Typically **1–2 calls per logged meal**. Check current prices at `ai.google.de
 | Photo portion sizes are estimates | ±20–30 % typical | User edits; "your usual" portions improve it per user |
 | Shared plates (e.g. a platter for 4) | Counts the whole plate (12 idlis on a platter) | User changes the amount; could add a "how many people shared?" question |
 | Cooking oil varies by household | Estimates assume moderate oil | Possible "less / normal / more oil" toggle |
-| In-memory rate limit is per process | Limit × number of processes | Redis limiter (A9 in [08](08-backend-integration.md)) |
-| Flutter, Bedrock and Mongo code not executed here | May need small fixes | Test on dev |
+| In-memory rate limit is per process | Limit × number of processes | Redis limiter |
+| Bedrock code not executed here | May need small fixes | Test before enabling |
 
 ## Roadmap (suggested order)
-1. **Now:** integrate on dev (doc 08), run the manual test list on real phones, and get the INDB licence email out.
+1. **Now:** deploy (doc 08), run the manual test list on real phones, and get the INDB licence email out.
 2. **Weeks 1–2:**
    - nutritionist cleans the 118 suspect rows and reviews the queue;
    - add ~100 more aliases from real usage;

@@ -1,6 +1,6 @@
 # 06 · API reference
 
-**Base URL:** the host backend (`AppConfig.backendBaseUrl` in the app). Locally: `http://127.0.0.1:8100`, with interactive docs at `/docs`.
+**Base URL:** wherever the service is deployed. Locally: `http://127.0.0.1:8100`, with interactive docs at `/docs`.
 
 **App routes**
 - All are `POST` with a JSON body containing `phoneNumber`.

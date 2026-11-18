@@ -2,8 +2,7 @@
 
 Usage (local test data):
     .venv\\Scripts\\python scripts\\export_training_data.py            -> training_data.jsonl
-Inside host-backend (MongoDB), run the same file with FOOD_STORE=mongo from
-the backend container so app.core.database is importable.
+With MongoDB, run the same file with FOOD_STORE=mongo and MONGODB_URI set.
 
 One line per confirmed item:
     {"input": "text"|"photo"|"voice", "userText": "...", "imageSha256": "...",

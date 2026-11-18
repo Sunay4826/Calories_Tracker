@@ -2,9 +2,7 @@
 
 Two interchangeable stores with the same four methods (get / put / find / delete):
 - JsonFileStore  one JSON file per collection on disk. For local testing only.
-- MongoStore     MongoDB via motor. Used inside host-backend, where the
-                 collection handle comes from app.core.database.get_allowed_collection
-                 (so every collection below must be in MONGODB_ALLOWED_COLLECTIONS).
+- MongoStore     MongoDB via motor (production). Connects with MONGODB_URI / MONGODB_DB.
 
 Every document has a string "id". MongoStore stores it as "_id".
 
@@ -22,7 +20,7 @@ from typing import Any, Protocol
 
 from .config import get_food_settings
 
-# Collection names (also listed in docs/08-backend-integration.md).
+# Collection names (also listed in docs/08-deployment.md).
 ANALYSES = "food_analyses"          # one per photo/text/voice request, editable until confirmed
 MEALS = "food_meal_logs"            # confirmed meals = the user's food diary
 CORRECTIONS = "food_corrections"    # every fix a user made (audit trail + learning input)
@@ -146,6 +144,7 @@ def get_store() -> Store:
     settings = get_food_settings()
     if settings.store == "json":
         return JsonFileStore(settings.json_store_dir)
-    from app.core.database import get_allowed_collection  # only exists inside host-backend
+    from motor.motor_asyncio import AsyncIOMotorClient
 
-    return MongoStore(get_allowed_collection)
+    database = AsyncIOMotorClient(settings.mongodb_uri)[settings.mongodb_db]
+    return MongoStore(lambda name: database[name])
